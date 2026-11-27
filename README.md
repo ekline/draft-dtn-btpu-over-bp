@@ -1,13 +1,26 @@
-# Internet-Draft Template Repository
 
-Use this repository as a template if you want to start working on
-[IETF](https://www.ietf.org/) documents. [Click here to create a new repository using the
-template](https://github.com/martinthomson/internet-draft-template/generate).
-Make sure to check "Include all branches", or you will need to enable GitHub Pages manually.
+# Bundle Transfer Protocol - Unidirectional (BTPU) over BPv7
 
-[Read the
-instructions](https://github.com/martinthomson/i-d-template/blob/main/doc/TEMPLATE.md)
-for more information.
+Edit [draft-ek-dtn-btpu-over-bp.md](draft-ek-dtn-btpu-over-bp.md) to work on
+this individual Internet-Draft. It specifies how to carry BTPU protocol data
+units in BPv7 bundles, forming a Tunnel Using BTPU Encapsulation (TUBE).
 
-Once you have created your own repository, start work by
-[renaming the `draft-todo-yourname-protocol.md` file](../../edit/main/draft-todo-yourname-protocol.md).
+On the first push of this draft to `main`, the [initial setup workflow](.github/workflows/setup.yml)
+generates the standard draft Makefile and replaces this setup README.
+
+## Preview a change
+
+Push a change to the Markdown or open a pull request. The
+[Update Editor's Copy workflow](https://github.com/ekline/draft-dtn-btpu-over-bp/actions/workflows/ghpages.yml)
+checks the draft and builds it with the IETF toolchain. Download the `drafts`
+artifact from a successful run to review the HTML and plain text. No local
+Ruby or kramdown installation is needed.
+
+Successful builds from `main` update the editor's copy on GitHub Pages:
+[HTML](https://ekline.github.io/draft-dtn-btpu-over-bp/draft-ek-dtn-btpu-over-bp.html)
+· [Plain text](https://ekline.github.io/draft-dtn-btpu-over-bp/draft-ek-dtn-btpu-over-bp.txt).
+Preview builds do not submit a version to the IETF Datatracker.
+
+For discussion, use the [DTN mailing list](mailto:dtn@ietf.org)
+([archive](https://mailarchive.ietf.org/arch/browse/dtn/)). See also the
+[contribution guidelines](CONTRIBUTING.md).
