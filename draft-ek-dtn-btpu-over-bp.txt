@@ -200,11 +200,16 @@ Table of Contents
 
 3.2.  PDU and reassembly limits
 
-   For each direction, the ingress MUST use a provisioned maximum PDU
-   length supported by the egress.  Count all octets of the outer ADU
-   before applying outer bundle security.  The egress MUST reject an
-   oversized PDU before processing any of its messages.  TUBE defines no
-   in-band discovery or default limit.
+   For each direction, provision a send maximum supported by the egress.
+   The ingress MUST NOT send a PDU longer than that maximum.  Measure
+   PDU length in octets of the outer ADU before applying outer bundle
+   security.  TUBE defines no in-band discovery or default limit.
+
+   The egress MAY accept a PDU above the provisioned send maximum if the
+   entire PDU fits within its local receive limit and the outer bundle
+   meets its admission policy.  The egress MUST reject a PDU above its
+   local receive limit.  Any rejection for size MUST precede processing
+   of any message in that PDU.
 
    The path or contact can impose a separate limit on the serialized
    outer bundle size.  The ingress MUST choose a PDU that fits after
@@ -243,10 +248,13 @@ Table of Contents
    (Section 5.1 of [I-D.ietf-dtn-btpu]).  Outer bundles can arrive out
    of order across a sender restart.
 
-   Every PDU containing a BTPU Transfer message MUST begin with a valid
-   Session Start.  The ingress MUST ensure that every Transfer message
-   in that PDU belongs to the announced session.  A PDU MUST contain at
-   most one Session Start and MUST NOT contain a Session End.
+   The ingress MUST begin any PDU containing a BTPU Transfer message
+   with a valid Session Start.  It MUST ensure that every Transfer
+   message in the PDU belongs to the announced session; a Transfer
+   message has no Session ID for the egress to verify independently.  A
+   PDU MUST contain at most one Session Start and MUST NOT contain a
+   Session End. A PDU carrying only ordinary Bundle Messages needs no
+   Session Start (Section 8.1 of [I-D.ietf-dtn-btpu]).
 
    An ingress can isolate a segmented transfer by assigning it a fresh
    source EID.  The following sections specify when the ingress can
@@ -296,24 +304,49 @@ Table of Contents
 
 5.  Reception and delivery
 
-   After normal BP reception and expiry checks, the egress rejects any
-   outer bundle that fails the PDU limit in Section 3.2, the framing
-   restrictions in Section 4.1, or the admission policy in Section 7.1.
-   For framing, count Session Start and Session End by message type; a
-   required leading Session Start must also be valid.  An outer bundle
-   rejected under these TUBE admission or framing rules MUST have no
-   effect on BTPU state or inner-bundle delivery.  For example, a
-   Session End later in a PDU prevents an earlier Session Start in that
-   PDU from changing the current session.
+   Normal BP reception and expiry checks apply.  If an outer bundle
+   fails required security or peer authorization (Section 7.1), or local
+   receive admission (including the local receive limit in Section 3.2),
+   the egress MUST reject it without changing BTPU state or handing any
+   inner bundle from it to the BPA.
 
-   Once the PDU is admitted, Sections 7.2 through 7.4 of
-   [I-D.ietf-dtn-btpu] govern malformed or unrecognized messages and
-   hints.  Sections 4 and 5 of [I-D.ietf-dtn-btpu] govern reassembly and
-   the transfer window.  If otherwise accepted messages for an
-   incomplete transfer give conflicting octets for the same segment
-   index or inconsistent final indices, the egress MUST cancel that
-   transfer.  The egress hands each whole or reconstructed inner bundle
-   intact to ordinary BPA reception processing.
+   After admission, any of the following violates TUBE session framing
+   (Section 4.1):
+
+   *  The PDU contains a Transfer message but does not begin with a
+      valid Session Start.
+
+   *  The PDU contains more than one Session Start.
+
+   *  The PDU contains a Session End.
+
+   Session Start and Session End count by message type at known
+   boundaries.  For a PDU with any such violation, the egress MUST leave
+   the channel's BTPU session and transfer state unchanged, even if
+   valid control or Transfer messages precede the violation.  It MUST
+   NOT infer a Transfer message's session from its Transfer Number or
+   the channel's current session.
+
+   The egress MUST still process each valid, independently delimited
+   Bundle Message that needs no session context (Section 8.1 of
+   [I-D.ietf-dtn-btpu]).  A trailing Session End therefore neither
+   closes an existing session nor prevents handoff of the inner bundle
+   from an earlier valid Bundle Message.
+
+   For ordinary message and hint errors, apply Sections 7.2 through 7.4
+   of [I-D.ietf-dtn-btpu].  Continue at the next known message boundary.
+   If that boundary cannot be determined, stop processing the remainder
+   of the PDU without discarding valid Bundle Messages already
+   delimited.
+
+   For a PDU with valid session framing, Sections 4 and 5 of
+   [I-D.ietf-dtn-btpu] govern reassembly and the transfer window.  If
+   otherwise accepted messages for an incomplete transfer give
+   conflicting octets for the same segment index or inconsistent final
+   indices, the egress MUST cancel only that transfer.  Other transfers
+   and independent Bundle Messages remain eligible for processing.  The
+   egress hands each whole or reconstructed inner bundle intact to
+   ordinary BPA reception processing.
 
    The egress SHOULD persist session and window state, segments, and
    completion or cancellation records across restart.  It SHOULD retain
@@ -518,10 +551,28 @@ Appendix B.  Experiment
    compare reconstructed octets, BPA handoff counts, and state recovered
    after restart across contacts with different delays.  Record handoffs
    and retained state for transfers packed with a common expiry,
-   oversized or misframed PDUs, compatible key rollover, and revocation
-   during reassembly.  Measure peak source EID use, reassembly state
-   retention time, and the fraction of late outer bundles discarded for
-   each reason.
+   compatible key rollover, and revocation during reassembly.  Add the
+   following receiver cases:
+
+   *  With a transfer incomplete on channel A, deliver an authorized
+      outer bundle containing Session Start(A), a complete Bundle
+      Message carrying inner bundle X, and an unexpected Session End(A),
+      in that order.  Both control messages name A's current session.
+      Verify that X reaches the BPA and that the PDU changes neither A's
+      session nor its transfer state.  Deliver the remaining segments in
+      correctly framed PDUs and verify that the original transfer
+      completes.
+
+   *  Set the local receive limit above the provisioned send maximum.
+      Use otherwise admissible outer bundles whose PDUs contain complete
+      Bundle Messages.  For a PDU above the send maximum but within the
+      receive limit, verify inner bundle handoff when the egress is
+      configured to accept that size.  For a PDU above the local receive
+      limit, verify rejection before any message processing, with no
+      BTPU state change or inner bundle handoff.
+
+   Measure peak source EID use, reassembly state retention time, and the
+   fraction of late outer bundles discarded for each reason.
 
 Author's Address
 
