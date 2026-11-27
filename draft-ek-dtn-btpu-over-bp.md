@@ -31,66 +31,56 @@ author:
 
 This document specifies how to carry the Bundle Transfer Protocol -
 Unidirectional (BTPU) over Bundle Protocol Version 7 (BPv7). In a Tunnel
-Using BTPU Encapsulation (TUBE), each outer bundle carries one BTPU
-link-layer protocol data unit in its application data unit. BTPU can carry several whole bundles in one outer bundle or
-divide a serialized bundle among several outer bundles. The tunnel can carry an existing BPv7 fragment without waiting for the other fragments.
-
-Outer bundles can take different routes and arrive in any order during
-their lifetimes. This document defines how tunnel endpoints identify BTPU
-channels, bound the size of each protocol data unit, and reuse channels
-while preserving transfers that can still complete. It also specifies when
-a change in outer-bundle security policy requires a new session.
+Using BTPU Encapsulation (TUBE), the application data unit of each outer
+bundle carries exactly one BTPU link-layer protocol data unit. BTPU can
+pack several inner bundles together or segment one across outer bundles.
+The tunnel can carry an existing BPv7 fragment without waiting for the
+other fragments. TUBE specifies when a channel can be reused despite
+out-of-order delivery of outer bundles.
 
 --- middle
 
 # Introduction
 
-Consider a spacecraft that uses a Tunnel Using BTPU Encapsulation (TUBE)
-to forward bundles through either of two ground
-stations. A large bundle takes three downlink transmissions. All three
-pieces are addressed to the same tunnel egress at the mission operations
-center. The last piece travels through a station with immediate onward
-connectivity. The first piece waits at the other station for several days.
-Meanwhile, later transfers reach the operations center in their entirety.
-Those transfers should not prevent completion of the earlier one.
+A spacecraft sends outer bundles through two ground stations to the same
+tunnel egress. An outer bundle queued at one station can arrive days
+after later transfers through the other station have completed.
 
-BPv7 {{!RFC9171}} provides the outer delivery service. BTPU
-{{!I-D.ietf-dtn-btpu}} provides message framing, packing, segmentation,
-and reassembly. Together they present one convergence-layer hop between
-the tunnel ingress and egress, even when the outer bundles traverse several
-BP nodes. Each direction operates independently. A deployment can use a
-single direction throughout its lifetime.
+A Tunnel Using BTPU Encapsulation (TUBE) combines BPv7 delivery
+{{!RFC9171}} with BTPU framing, packing, segmentation, and reassembly
+{{!I-D.ietf-dtn-btpu}}. The tunnel is one convergence-layer hop for an
+inner bundle, regardless of the outer path. Each direction operates
+independently.
 
-Bundle-in-Bundle Encapsulation (BIBE) {{?I-D.ietf-dtn-bibe}} describes
-the same forwarding model and defines its own payload format for whole
-bundles and segments. This specification uses BTPU on the wire. An
-operator can reuse BTPU implementations across this tunnel and other
-bindings, such as BTPU over Ethernet {{?I-D.ek-dtn-ethernet}}. A node
-that provides both BIBE and this service configures distinct receiving
-endpoints for the two payload formats.
+Bundle-in-Bundle Encapsulation (BIBE) {{?I-D.ietf-dtn-bibe}} uses the
+same forwarding model but a different payload format. An implementation
+can reuse BTPU across TUBE and other bindings, such as BTPU over Ethernet
+{{?I-D.ek-dtn-ethernet}}. A node offering both BIBE and TUBE configures
+distinct receiving endpoints for the two formats.
 
 ## Conventions and terminology
 
 {::boilerplate bcp14-tagged}
 
-A *carrier* is an outer BPv7 bundle. An *inner bundle* is the BPv7
-bundle being forwarded through the tunnel. A *PDU* is a BTPU link-layer
-protocol data unit. *Session*, *Transfer*, *Transfer Window*, and the
-message names have the meanings defined by BTPU. In particular, a BTPU
-Transfer carries a segmented object. A Bundle Message carries a whole
-object without using a Transfer Number.
+An *outer bundle* is a BPv7 bundle whose application data unit (ADU)
+carries a BTPU link-layer protocol data unit (*PDU*). An *inner bundle*
+is a BPv7 bundle forwarded through the tunnel. *Session*, *Transfer*,
+*Transfer Window*, and the message names are defined in {{I-D.ietf-dtn-btpu}}.
 
 # Endpoints and channel identification
 
-For each sending direction, configure the ingress with a singleton
-destination endpoint identifier (EID) at the egress and one or more
-source EIDs that the ingress is entitled to use as its BP source node
-ID. Configure the egress to accept the corresponding sources, apply its
-outer-bundle security policy, and dispatch the delivered application
-data unit (ADU) to this service. Anonymous carriers MUST NOT be used.
-The singleton destination ensures that carriers taking different paths
-reach the same reassembly function. A receiver implemented by several
-processes MUST provide consistent channel state across those processes.
+The ordered pair (outer source EID, outer destination EID) identifies one
+unidirectional BTPU logical channel. Compare the full endpoint identifiers
+(EIDs) using their scheme's equality rules. The egress MUST select the
+channel before applying a BTPU state transition. Each channel has its own
+session and transfer window.
+
+For each direction, configure a singleton destination EID at the egress
+and one or more source EIDs the ingress is authorized to use as its BP
+source node ID. Outer bundles MUST NOT have an anonymous source. Configure
+the egress to accept those sources and dispatch the outer ADU to TUBE.
+If several processes serve the destination, they MUST maintain consistent
+channel state.
 
 Under the ipn scheme, the proposed well-known TUBE destination service
 number is TBD1.
@@ -104,300 +94,234 @@ Both identifiers apply only to the outer destination EID. A deployment
 can configure a different ipn service number or dtn demux for that
 destination. Neither identifier constrains the choice of source EID.
 
-The ordered pair (outer source EID, outer destination EID) identifies one
-unidirectional BTPU logical channel. Compare the complete EIDs according
-to their scheme's equality rules. Each pair has its own BTPU instance,
-current session, and transfer window. A Session ID has meaning within this
-channel. The egress MUST select the channel before applying any BTPU
-session or transfer state transition.
-
-An ingress MAY use an ephemeral source EID for one segmented transfer.
-All carriers of that transfer MUST use the same source and destination
-EIDs. For the ipn scheme, an ingress can select a service number from
-a pool assigned to this purpose on its own fully qualified node number
-({{!RFC9758}}, Sections 5.3 and 9.3). The egress can authorize the peer
-by node number and service-number range. It MUST retain the service number
-when identifying the channel. The service number in the destination EID
-can remain fixed. The availability and selection of source EIDs under
-other schemes depend on the scheme and the deployment.
+The ingress MAY use an ephemeral source EID for a segmented transfer.
+All outer bundles for that transfer MUST use the same source and
+destination EIDs. For example, the ingress can select an ipn service
+number from a pool on its own fully qualified node number (Sections 5.3
+and 9.3 of {{!RFC9758}}). The egress can authorize the node and the
+entire service-number range while distinguishing channels to the same
+destination by their source service numbers.
 
 # Encapsulation
 
 ## Payload mapping and forwarding
 
-The ingress takes the serialized inner bundle after its BPA has performed
-normal forwarding-time processing under Section 5.4 of {{RFC9171}}. It
-MUST use one serialization for all segments and repetitions of a given
-transfer. The tunnel treats the serialized inner bundle as opaque, even
-when it is protected. The ingress can encapsulate a BPv7 fragment without
-waiting for any other fragment of the same bundle.
+After its Bundle Protocol Agent (BPA) performs normal forwarding-time
+processing under Section 5.4 of {{RFC9171}}, the ingress MUST capture one
+serialization of the inner bundle and reuse those octets for every segment
+and repetition of the transfer. The tunnel treats the octets as opaque,
+even for a protected inner bundle. The ingress can encapsulate a BPv7
+fragment without waiting for any other fragment of the same bundle.
 
-The ADU of each carrier MUST consist of exactly one nonempty BTPU
-Link-layer PDU, as defined in {{I-D.ietf-dtn-btpu}}. The outer ADU boundary
-delimits the PDU. There is no additional envelope, length prefix, or
-administrative record header. The ingress MUST clear the administrative
-record flag and set the "Bundle must not be fragmented" flag on each
-carrier. Each carrier, including a newly created carrier that repeats a
-BTPU message, receives its own BP identity. Normal BP forwarding of a
-carrier preserves that carrier's identity.
+The ADU of each outer bundle MUST consist of exactly one nonempty BTPU
+Link-layer PDU, as defined in {{I-D.ietf-dtn-btpu}}. There is no additional
+envelope, length prefix, or administrative record header. The ingress MUST
+clear the administrative record flag and set the "Bundle must not be
+fragmented" flag on each outer bundle. Each new outer bundle has its own
+BP identity, even when it repeats a BTPU message.
 
-A sender using this binding MUST encode a whole inner bundle in a BTPU
-Bundle Message. When the whole bundle exceeds the available space or the
-message length limit, use Transfer Segment and Transfer End messages as
-specified by BTPU. Receivers MUST support both forms. A PDU may pack
-messages for several objects when the channel, expiry, and security
-rules in this document permit it. A Bundle Message consumes no window
-slot and can be processed without a current session. Whole bundles alone
-can therefore use a stable EID pair without session signaling in the
-base binding.
+When sending an inner bundle without segmentation, the ingress MUST use a
+BTPU Bundle Message. The ingress and egress MUST support segmented
+transfers as specified in Section 4 of {{I-D.ietf-dtn-btpu}}. The egress
+can receive unsegmented inner bundles on a stable EID pair without
+session signaling (Section 8.1 of {{I-D.ietf-dtn-btpu}}).
 
-Submitting all necessary carriers to the outer BPA completes the local
-handoff. It gives the ingress no assurance that the egress reconstructed
-the inner bundle. If the ingress cannot construct or submit all required
-carriers, it reports a local forwarding failure to its BPA. A retry that
-continues an existing transfer preserves the bytes and indices already
-assigned. If that is impossible, the ingress uses a new transfer and
-applies the channel reuse rules below.
+Submitting all required outer bundles to the outer BPA completes the local
+handoff, not delivery to the egress. If the ingress cannot construct or
+submit them all, it reports a local forwarding failure to its BPA. To retry
+the same transfer, the ingress preserves the assigned octets and indices.
+If it cannot, it starts a new transfer under the channel reuse rules.
 
-## PDU and reassembly limits
+## PDU and reassembly limits {#pdu-and-reassembly-limits}
 
-Each direction MUST have a provisioned maximum PDU length, expressed in
-octets of the outer ADU before outer-bundle security is applied. It
-includes all BTPU headers, hints, content, and padding. The ingress MUST
-use a maximum supported by the egress and MAY emit smaller PDUs. The
-egress MUST discard an oversized PDU before processing any of its
-messages. This binding defines no in-band discovery procedure or universal
-default. The maximum serialized inner bundle size that the egress will
-accept for reassembly is a separate deployment parameter.
+For each direction, the ingress MUST use a provisioned maximum PDU length
+supported by the egress. Count all octets of the outer ADU before applying
+outer bundle security. The egress MUST reject an oversized PDU before
+processing any of its messages. TUBE defines no in-band discovery or
+default limit.
 
-Where a route or contact limits the serialized carrier size, the ingress
-MUST account for the outer primary block, canonical blocks and their
-encoding, CRCs where present, and the overhead of the selected security
-operations. It MUST use a PDU small enough for the resulting carrier to
-fit the applicable limit. A change in outer-bundle overhead can reduce
-the usable PDU size. If the available space cannot accommodate the
-required messages and data, the ingress defers transmission or selects
+The path or contact can impose a separate limit on the serialized outer
+bundle size. The ingress MUST choose a PDU that fits after accounting for
+BP encoding, extension blocks, and security overhead. If the required
+messages and data will not fit, the ingress defers transmission or selects
 another forwarding opportunity.
 
-A BTPU message's 20-bit Length field covers the hints and content after
-its four-octet header. Thus a Bundle Message with no hints can carry up
-to 1,048,575 inner-bundle octets, even if the configured PDU limit is
-larger. Several messages can occupy one larger PDU. As a sizing example,
-a 65,536-octet PDU containing a 14-octet Session Start and one Transfer
-Segment can carry 65,510 segment-data octets. This assumes no hints or
-padding and allows four octets for the second message header and eight
-for its Transfer Number and Segment Index. The outer BP overhead is
-additional.
+The egress separately limits the maximum serialized inner bundle size it
+accepts for reassembly. An inner bundle need not fit in one PDU.
 
 ## Expiry and packing
 
-A sender MUST select one expiry for a segmented transfer, no later than
-the expiry of its inner bundle. It MUST set the lifetime of each carrier
-from the interval remaining until that expiry when the carrier is
-created. A repetition sent later has correspondingly less lifetime.
-Where the ingress lacks an accurate clock, it uses the remaining inner
-bundle lifetime and locally elapsed time, and supplies the outer Bundle
-Age block as required by BPv7. If it cannot establish a remaining
-lifetime, it cannot use this tunnel for the bundle. This follows the
-expiry model in {{I-D.ietf-dtn-bibe}}.
+The ingress MUST select one expiry for a segmented transfer, no later than
+the expiry of its inner bundle. It MUST set each outer bundle's lifetime
+to the interval remaining until that expiry when it creates the outer
+bundle. An outer bundle created later to repeat a message therefore has a
+shorter lifetime. Where the ingress lacks an accurate clock, it uses the
+remaining inner bundle lifetime and locally elapsed time, and supplies the
+outer Bundle Age block as required by {{RFC9171}}. If it cannot establish
+a remaining lifetime, it cannot use this tunnel for the inner bundle.
+This follows the expiry model in {{I-D.ietf-dtn-bibe}}.
 
-All segmented transfers represented in one carrier MUST have the same
-chosen expiry. The carrier MUST also expire no later than any whole
-inner bundle it contains. The sender can select a common expiry when it
-starts several transfers or pack separate carriers for transfers that
-already have different expiries. It MUST also select outer protection
-acceptable for every object represented in a carrier.
+All segmented transfers represented in one outer bundle MUST have the same
+chosen expiry. The outer bundle MUST also expire no later than any whole
+inner bundle it contains. The ingress can select a common expiry when it
+starts several transfers or use separate outer bundles for transfers with
+different expiries. It MUST select outer bundle protection acceptable for
+every object in that outer bundle.
 
 # Sessions over a store-and-forward path
 
-## Starting a session
+## Starting a session {#starting-a-session}
 
-BTPU maintains one current session per logical channel. A Session Start
-for a new session cancels transfers in the preceding session. Reordering
-can cause a delayed Session Start to restore an earlier session and
-cancel work in the later one. A Transfer message itself carries no
-Session ID. It would be interpreted under whichever session is then
-current (Section 5.1 of {{I-D.ietf-dtn-btpu}}).
+A delayed Session Start can cancel transfers on the same channel
+(Section 5.1 of {{I-D.ietf-dtn-btpu}}). Outer bundles can arrive out of
+order across a sender restart.
 
-For this binding, every PDU containing a Transfer message MUST begin with
-a valid Session Start for the session to which all Transfer messages in
-that PDU belong. The sender sets Next Transfer Number as specified by
-BTPU at the time of emission. A repeated Session Start for the current
-session does not reset the receiver's window. A PDU MUST carry at most
-one Session Start and MUST NOT carry a Session End. The binding retires
-channel state by expiry. These rules let the carrier with the final
-segment initialize the session when that carrier arrives first.
+Every PDU containing a BTPU Transfer message MUST begin with a valid
+Session Start. The ingress MUST ensure that every Transfer message in that
+PDU belongs to the announced session. A PDU MUST contain at most one
+Session Start and MUST NOT contain a Session End.
 
-A simple sending policy assigns a fresh source EID, one session, and one
-segmented transfer to a channel. Other channels can then carry any number
-of later transfers without advancing this channel's window. The sender
-still announces a valid BTPU window size.
+An ingress can isolate a segmented transfer by assigning it a fresh source
+EID. The following sections specify when the ingress can reuse an EID pair.
 
 ## Reusing a channel within a session
 
-A sender MAY start another transfer on the channel when it has a
-reasonable basis to expect that advancing the window will preserve every
-earlier transfer on the channel that can still complete. In making this
-determination it MUST account for any admissible arrival order, including
-a receiver that learns the session from a later carrier. A sender lacking
-such a basis SHOULD defer the new transfer or use a different source EID.
+Sections 5 and 5.1 of {{I-D.ietf-dtn-btpu}} define how the egress
+initializes and advances the Transfer Window. The ingress MAY start
+another transfer on the channel when it has a reasonable basis to expect
+that advancing the window will preserve every earlier transfer that can
+still complete. It MUST account for the span of Transfer Numbers in outer
+bundles that can still arrive in any admissible order. Consider both the
+window the egress may already hold and the window it would initialize if
+a later outer bundle arrived first. Without such a basis, the ingress
+SHOULD defer the transfer or use a different source EID.
 
-For a window of size W, if the greatest Transfer Number the receiver
-might observe is G, the window extends back through G - W + 1 inclusive,
-using BTPU serial number arithmetic. With W = 4, transfers 100 through
-103 can coexist even when 103 arrives first. Starting 104 can evict 100.
-Finishing 101, 102, and 103 does not change that fact. Evidence that
-100 has expired or that the egress already holds its complete object
-can justify advancing the window. Elapsed time since submission or
-transmission over one outer hop is insufficient by itself.
+The ingress MUST prevent a delayed outer bundle from being mistaken for
+part of a new transfer because of serial-number wrap or an ambiguous
+serial-number distance. It can switch channels before the span becomes
+ambiguous. The local queue alone does not bound that span.
 
-The sender MUST also prevent delayed carriers from being mistaken for
-new transfers because of serial number wrap or an ambiguous serial
-number distance. One simple policy is to stop assigning numbers on the
-channel before the range of numbers in still-deliverable carriers can
-exceed BTPU's unambiguous comparison range, and to allocate another
-channel. A count of locally queued transfers alone cannot bound that range.
+## Starting another session on a used EID pair {#starting-another-session-on-a-used-eid-pair}
 
-## Starting another session on a used EID pair
+For a new session, including after restart, the ingress SHOULD use a fresh
+EID pair unless it can establish both of the following:
 
-A sender starting a new session, including after sender restart, SHOULD
-use a fresh EID pair unless it can establish both that outstanding work
-from the old session no longer needs the channel and that a carrier from
-that session cannot disrupt the new one. Waiting for all carriers of the
-old session, including repetitions and control messages, to expire
-satisfies the latter condition when their latest possible delivery time
-can be bounded. An operator can also establish that all relevant queues
-and paths have drained. Completion of the old transfers alone leaves open
-the possibility of a delayed duplicate Session Start.
+* No earlier transfer can still need the channel.
+* No delayed outer bundle from the old session can disrupt the new one.
+
+Confirmation that the old transfers completed does not establish that all
+old outer bundles have drained: a delayed Session Start can still arrive.
+The ingress can wait until all old outer bundles, including repetitions
+and control messages, are known to have expired, or establish that the
+relevant queues and paths have drained. Expiry of an individual transfer
+does not retire a shared channel.
 
 An ingress relying on expiry for reuse MUST retain enough allocation
-state across restart to enforce this rule, or select source EIDs it knows
-are available. Where age estimates do not provide a safe reuse time, it
-SHOULD use a fresh source EID. Pool exhaustion is a reason to defer a
-transfer or select another route.
+state across restart to enforce this rule, or select source EIDs known
+to be available. If age estimates do not bound the reuse time, it SHOULD
+use a fresh source EID. If none is available, it can defer the transfer
+or use another route.
 
 # Reception and delivery
 
-The egress applies normal outer BP reception, expiry, and configured
-security checks. Before allowing a PDU to alter channel state, it MUST
-verify that the carrier is admissible for the complete EID pair and
-within the receive PDU limit. It MUST discard a PDU that violates the
-Session Start placement or Session End rules above. For admitted PDUs,
-BTPU governs message parsing, unknown types and hints, invalid messages,
-and window processing.
+After normal BP reception and expiry checks, the egress rejects any outer
+bundle that fails the PDU limit in {{pdu-and-reassembly-limits}}, the
+framing restrictions in {{starting-a-session}}, or the admission policy in
+{{outer-bundle-admission}}. For framing, count Session Start and Session
+End by message type; a required leading Session Start must also be valid.
+An outer bundle rejected under these TUBE admission or framing rules MUST
+have no effect on BTPU state or inner-bundle delivery. For example, a
+Session End later in a PDU prevents an earlier Session Start in that PDU
+from changing the current session.
 
-The egress accepts segments in any order within an admitted transfer.
-A Transfer End with final index N supplies the last segment and tells
-the receiver which indices to await. It hands the reconstructed octets
-to ordinary BPA reception processing only after it has every segment
-from zero through N. Identical repetitions contribute no new octets.
-If two admissible messages give conflicting data for an index or
-inconsistent final indices, the egress MUST cancel that transfer.
-A valid Transfer Cancel has its usual BTPU effect.
+Once the PDU is admitted, Sections 7.2 through 7.4 of {{I-D.ietf-dtn-btpu}}
+govern malformed or unrecognized messages and hints. Sections 4 and 5 of
+{{I-D.ietf-dtn-btpu}} govern reassembly and the transfer window.
+If otherwise accepted messages for an incomplete transfer give conflicting
+octets for the same segment index or inconsistent final indices, the
+egress MUST cancel that transfer. The egress hands each whole or
+reconstructed inner bundle intact to ordinary BPA reception processing.
 
-For an admitted transfer the egress SHOULD persist the session, window,
-segments, and completion or cancellation state across restart. It SHOULD
-retain incomplete state until completion or the transfer's expiry,
-subject to BTPU's resource limits and explicit cancellation. Where
-carriers indicate different local estimates of the same expiry, use the
-earliest observed effective expiry as the incomplete reassembly deadline.
-Silence and progress on another channel are insufficient grounds to
-declare a transfer obsolete.
+The egress SHOULD persist session and window state, segments, and
+completion or cancellation records across restart. It SHOULD retain
+incomplete reassembly until completion or the transfer's expiry, subject
+to cancellation and local resource limits. If outer bundles yield
+different expiry estimates, the reassembly deadline is the earliest
+observed effective expiry. Abandoning reassembly cancels the transfer
+(Section 4.2 of {{I-D.ietf-dtn-btpu}}).
 
-The egress MUST suppress repeated delivery of a completed segmented
-transfer while additional copies can still be admitted for it. An
-implementation can commit the completed-transfer record together with
-the handoff to a persistent BPA receive queue, and retain the record
-until the last admissible copy expires. A receiver that has discarded
-partial state cannot reconstruct the missing octets without another
-copy. A whole Bundle Message has no Transfer Number. Duplicate carriers
-or repeated Bundle Messages can therefore result in repeated presentation
-of the inner bundle to normal BPA reception processing.
+BTPU suppresses further messages for a canceled or completed transfer
+(Sections 4.2 and 6 of {{I-D.ietf-dtn-btpu}}). Even after releasing the
+segments, the egress retains enough state to suppress delayed copies
+while they can still be admitted for that transfer. A repeated unsegmented
+Bundle Message can present the same inner bundle more than once.
 
-The tunnel hands the inner serialization to the BPA intact. Inner
-extension blocks are opaque during transit. The receiving BPA SHOULD
-account for known tunnel transit time when processing a Bundle Age
-block under {{RFC9171}}, particularly for an inner bundle whose creation
-time is zero. Transit through outer forwarding nodes counts as one
-inner convergence-layer hop. Inner status reports and outer status
-reports refer to their respective bundles.
+The receiving BPA SHOULD account for known tunnel transit time when
+processing an inner bundle's Bundle Age block under {{RFC9171}},
+particularly when its creation time is zero. Status reports for inner
+and outer bundles refer to their respective bundles.
 
 # Operational considerations
 
-Routing policy MUST prevent a carrier from being forwarded into the
-same tunnel recursively. Each new carrier starts its own BP forwarding
-history. An outer Hop Count block alone cannot bound repeated
-re-encapsulation. A separate outer forwarding table or a route to the
-egress service that excludes this tunnel can provide the restriction.
+Routing policy MUST prevent an outer bundle from being forwarded back
+into the same tunnel recursively. Each encapsulation creates a new outer
+bundle with its own forwarding history, so an outer Hop Count block alone
+cannot bound recursion. A route to the egress that excludes the tunnel
+can enforce this rule.
 
-The congestion-control applicability limits of {{I-D.ietf-dtn-btpu}}
-apply. Provision the offered load, including repetitions and overhead,
-against available queue storage and forwarding capacity across the
-outer path. An uncontested, capacity-managed path is one deployment
-model. Where congestion can occur, suitable congestion control is
-required. A known downlink rate alone says little about the queues
-beyond the first receiving station.
+Section 11 of {{I-D.ietf-dtn-btpu}} requires suitable underlying
+congestion control where congestion can occur. Provision the offered
+load, including repetitions and overhead, against queue storage and
+forwarding capacity along the entire outer BP path. The first hop's rate
+does not bound the queues beyond it.
 
-Operation requires no return channel. A deployment that provides one
-can use authenticated feedback to inform the window decision. For
-example, the Bundle Transfer Protocol - Cross-Link (BTPX) proposal {{?I-D.taylor-dtn-btpx}} defines a
-Completed status indicating that the reporting peer holds the object.
-Such a report can justify advancing the window past that transfer. It
-does not establish that old carriers have drained. A deployment using
-BTPX also observes its requirement for distinct Session IDs across a
-sender's concurrent sessions on associated channels.
+No return channel is required, but authenticated confirmation that the
+egress holds the object, such as a Completed status from the optional
+Bundle Transfer Protocol - Cross-Link (BTPX) {{?I-D.taylor-dtn-btpx}},
+can justify advancing the current session's window past that transfer.
+It does not establish that all old outer bundles have drained before a
+new session starts.
 
 # Security considerations
 
-## Carrier admission
+## Outer bundle admission {#outer-bundle-admission}
 
-The egress MUST apply its configured outer-bundle security and peer
-authorization policy before processing any BTPU message, including
-Session Start and Transfer Cancel. An unauthorized control message
-could otherwise cancel a transfer before the carrier is rejected.
-An EID is a routing and dispatch identifier. Its presence alone does
-not authenticate the peer authorized to use it.
+The egress MUST apply its configured outer bundle security and peer
+authorization policy before processing any BTPU message. An EID alone
+does not authenticate a sender. Where authentication is required, the
+policy MUST bind the PDU and the outer source and destination EIDs to an
+authorized sender. If the security source differs from the outer bundle
+source, the egress verifies that it is authorized to act for that source.
 
-Where authenticated carriage is required, the policy MUST bind the PDU
-and the outer source and destination EIDs to an authorized sender. The
-security source may differ from the bundle source. The egress verifies
-that the security source is authorized to act for that carrier source.
-BPSec {{!RFC9172}} can supply carrier protection. When using the BPSec
-COSE context {{?I-D.ietf-dtn-bpsec-cose}}, the egress checks the actual
-protection and scope, including coverage of the channel-identifying
-fields. Inner-bundle protection remains subject to independent BP policy.
+BPSec {{!RFC9172}} can protect outer bundles. When using the BPSec COSE
+context {{?I-D.ietf-dtn-bpsec-cose}}, check that the selected protection
+covers the PDU and the channel-identifying fields. Protection of the
+inner bundle remains subject to independent BP policy.
 
 ## Changes in security policy
 
-When the effective policy for protecting or accepting carriers changes,
-the sender MUST reassess channel reuse. It MUST start a new session
-for subsequent segmented transfers when the receiver cannot authorize
-joint reassembly of carriers protected under the old and new policies.
-The normal cross-session EID reuse rules apply. The sender MUST NOT
-continue an inner transfer across such a boundary. If the inner bundle
-still requires forwarding, it may start a new transfer under the new
-policy. Previously authorized transfers can finish on their old
-channels for as long as receiver policy permits.
+When the policy for protecting or accepting outer bundles changes, the
+ingress MUST reassess channel reuse. If the egress cannot authorize joint
+reassembly of segments protected under the old and new policies, the
+ingress MUST NOT continue a transfer across that change and MUST start a
+new session before its next segmented transfer
+({{starting-another-session-on-a-used-eid-pair}}). Old transfers can
+finish on their old channels only while egress policy permits.
 
-For example, routine key rotation can preserve a session when overlapping
-credentials authorize the same peer, recipient set, and protection.
-A change of confidentiality recipients can require a fresh channel and
-a new transfer. On revocation, the egress MUST apply the revocation
-policy to both arriving carriers and retained segments of incomplete
-transfers. If policy no longer permits using those segments, it MUST
-discard the affected reassembly. An authenticated change of Session ID
-does not establish authorization for data already received.
+Routine key rollover can preserve a session when overlapping credentials
+authorize the same peer, recipient set, and protection. A change of
+confidentiality recipients can require a new transfer. On revocation, the
+egress MUST apply its revocation policy to both arriving outer bundles and
+retained segments of incomplete transfers. It MUST discard the affected
+reassembly if the policy no longer permits using those segments.
 
 ## Resource use and replay
 
-Bound the PDU length, accepted inner size, number of channels and
-transfers, segment storage, and retention time. Apply aggregate limits
-to the authorized peer across its ephemeral EIDs. Check lengths and
-indices before allocating storage. A declared final index or Bundle
-Length hint alone gives no reason to reserve the advertised capacity.
-A replayed valid carrier can consume resources until expiry. Completion
-and cancellation records, bounded lifetimes, and channel reuse rules
-limit the effects of such replays.
+In addition to BTPU's reassembly limits (Sections 4 and 10 of
+{{I-D.ietf-dtn-btpu}}), bound the number of channels and transfers,
+segment storage, and retention time for each authorized peer across all
+its ephemeral EIDs. A replayed outer bundle can consume resources until
+expiry even when duplicate delivery is suppressed.
 
 # IANA considerations
 
@@ -418,41 +342,36 @@ or BTPU message type.
 
 --- back
 
-# Example of reordered carriers
+# Example of reordered outer bundles {#example-of-reordered-outer-bundles}
 
-The ingress has a pool of authorized source EIDs. The egress has one
-configured destination EID. Channel A uses one source EID and a window
-of four. Channel B uses a second source EID and the same destination.
-Both channels carry Session Start at the beginning of each PDU
-containing Transfer messages.
+The ingress has two authorized source EIDs and one egress destination
+EID. Channel A uses the first source EID and a window of four. The
+ingress reserves the second source EID for a fresh channel B.
 
-1. On A, the ingress sends transfer 100 in three carriers, with segment
-   indices 0, 1, and 2. Only the carrier with Transfer End and index 2
-   reaches the egress promptly. The egress stores it.
-2. Transfers 101 through 103 complete on A. Transfer 100 is still within
-   the window. The ingress has no confirmation of its completion.
-3. The ingress sends the next object on B. Assigning transfer number
-   104 on A could displace 100. The Transfer Number on B is chosen
-   independently. Receipt on B leaves A's window untouched.
-4. The egress restarts and recovers its receive state. Before transfer
-   100 expires, segments 1 and 0 arrive on A. The egress concatenates
-   segments 0, 1, and 2 and hands the inner bundle to its BPA. A later
-   duplicate of segment 2 produces no second handoff.
+1. On A, the ingress sends transfer 100 in three outer bundles carrying
+   segments 0, 1, and 2. Only the outer bundle with segment 2 (Transfer
+   End) arrives promptly. Its PDU begins with a Session Start, so the
+   egress can accept segment 2 first.
+2. Transfers 101 through 103 complete on A. The window now spans 100
+   through 103; the ingress has no confirmation that 100 is complete.
+3. The ingress sends the next inner bundle on B. Assigning transfer number
+   104 on A could displace 100. The transfer number on B is independent
+   and does not advance A's window.
+4. After a restart, the egress recovers its session, window, and stored
+   segment 2. Segments 1 and 0 arrive on A before transfer 100 expires.
+   The egress hands the reconstructed inner bundle to its BPA. A later
+   copy of segment 2 does not cause a second handoff.
 
-If transfer 100 carries a BPv7 fragment, the egress reconstructs that
-fragment from BTPU segments 0 through 2. It passes the fragment to its
-BPA with the fragment offset unchanged. Reassembly of the original ADU
-is a separate BPv7 operation.
+If the inner bundle was a BPv7 fragment, the BPA receives that fragment
+with its original offset. Reassembly of the original ADU is separate.
 
 # Experiment
 
-This experiment tests whether a BPv7 network can serve as a BTPU link
-across contacts with substantially different delays. Two independent
-implementations can use the preceding example to check the reconstructed
-octets, number of BPA handoffs, and retained state after restart.
-Additional cases include two transfers sharing a carrier with a common
-expiry, an oversized PDU containing Session Start, a routine key rollover
-during reassembly, and rejection of a carrier after key revocation.
-Useful observations include the peak number of source EIDs in use,
-the duration of reassembly state, and the fraction of late carriers
-discarded by reason.
+Two independent implementations can use the scenario in
+{{example-of-reordered-outer-bundles}} to compare reconstructed octets,
+BPA handoff counts, and state recovered after restart across contacts
+with different delays. Record handoffs and retained state for transfers
+packed with a common expiry, oversized or misframed PDUs, compatible key
+rollover, and revocation during reassembly. Measure peak source EID use,
+reassembly state retention time, and the fraction of late outer bundles
+discarded for each reason.
