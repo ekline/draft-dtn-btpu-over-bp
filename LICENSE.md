@@ -1,3 +1,4 @@
 # License
 
-See the [guidelines for contributions](CONTRIBUTING.md) for the IETF terms that apply to this draft.
+See the
+[guidelines for contributions](https://github.com/ekline/draft-dtn-btpu-over-bp/blob/main/CONTRIBUTING.md).

@@ -13,12 +13,12 @@
 /.refcache
 /.venv/
 /.vscode/
-/draft-ek-dtn-btpu-over-bp.xml
 /lib
 /node_modules/
 /versioned/
 Gemfile.lock
 archive.json
+draft-ek-dtn-btpu-over-bp.xml
 package-lock.json
 report.xml
 !requirements.txt

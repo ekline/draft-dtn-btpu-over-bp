@@ -27,3 +27,19 @@ No local Ruby toolchain is required. Open the
 [Update Editor's Copy workflow](https://github.com/ekline/draft-dtn-btpu-over-bp/actions/workflows/ghpages.yml)
 run for your push or pull request. Build errors appear in the job log. On
 success, download the `drafts` artifact to review the rendered HTML and text.
+
+
+## Working Group Information
+
+Discussion of this work occurs on the [Delay/Disruption Tolerant Networking
+Working Group mailing list](mailto:dtn@ietf.org)
+([archive](https://mailarchive.ietf.org/arch/browse/dtn/),
+[subscribe](https://www.ietf.org/mailman/listinfo/dtn)).
+In addition to contributions in GitHub, you are encouraged to participate in
+discussions there.
+
+**Note**: Some working groups adopt a policy whereby substantive discussion of
+technical issues needs to occur on the mailing list.
+
+You might also like to familiarize yourself with other
+[Working Group documents](https://datatracker.ietf.org/wg/dtn/documents/).
