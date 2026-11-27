@@ -7,14 +7,14 @@ submissiontype: IETF
 ipr: trust200902
 v: 3
 stand_alone: true
-workgroup: Delay/Disruption Tolerant Networking
+workgroup: "Delay/Disruption Tolerant Networking"
 venue:
-  group: Delay/Disruption Tolerant Networking
-  type: Working Group
-  mail: dtn@ietf.org
-  arch: https://mailarchive.ietf.org/arch/browse/dtn/
-  github: ekline/draft-dtn-btpu-over-bp
-  latest: https://ekline.github.io/draft-dtn-btpu-over-bp/draft-ek-dtn-btpu-over-bp.html
+  group: "Delay/Disruption Tolerant Networking"
+  type: "Working Group"
+  mail: "dtn@ietf.org"
+  arch: "https://mailarchive.ietf.org/arch/browse/dtn/"
+  github: "ekline/draft-dtn-btpu-over-bp"
+  latest: "https://ekline.github.io/draft-dtn-btpu-over-bp/draft-ek-dtn-btpu-over-bp.html"
 keyword:
   - Bundle Protocol
   - convergence layer
