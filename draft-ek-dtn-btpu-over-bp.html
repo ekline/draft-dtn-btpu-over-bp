@@ -11,8 +11,7 @@
 Unidirectional (BTPU) over Bundle Protocol Version 7 (BPv7). In a Tunnel
 Using BTPU Encapsulation (TUBE), each outer bundle carries one BTPU
 link-layer protocol data unit in its application data unit. BTPU can carry several whole bundles in one outer bundle or
-divide a serialized bundle among several outer bundles. The same procedures
-apply when the serialized bundle is itself a BPv7 fragment. 
+divide a serialized bundle among several outer bundles. The tunnel can carry an existing BPv7 fragment without waiting for the other fragments. 
        Outer bundles can take different routes and arrive in any order during
 their lifetimes. This document defines how tunnel endpoints identify BTPU
 channels, bound the size of each protocol data unit, and reuse channels
@@ -1093,8 +1092,7 @@ svg {
 Unidirectional (BTPU) over Bundle Protocol Version 7 (BPv7). In a Tunnel
 Using BTPU Encapsulation (TUBE), each outer bundle carries one BTPU
 link-layer protocol data unit in its application data unit. BTPU can carry several whole bundles in one outer bundle or
-divide a serialized bundle among several outer bundles. The same procedures
-apply when the serialized bundle is itself a BPv7 fragment.<a href="#section-abstract-1" class="pilcrow">¶</a></p>
+divide a serialized bundle among several outer bundles. The tunnel can carry an existing BPv7 fragment without waiting for the other fragments.<a href="#section-abstract-1" class="pilcrow">¶</a></p>
 <p id="section-abstract-2">Outer bundles can take different routes and arrive in any order during
 their lifetimes. This document defines how tunnel endpoints identify BTPU
 channels, bound the size of each protocol data unit, and reuse channels
@@ -1310,13 +1308,22 @@ data unit (ADU) to this service. Anonymous carriers <span class="bcp14">MUST NOT
 The singleton destination ensures that carriers taking different paths
 reach the same reassembly function. A receiver implemented by several
 processes <span class="bcp14">MUST</span> provide consistent channel state across those processes.<a href="#section-2-1" class="pilcrow">¶</a></p>
-<p id="section-2-2">The ordered pair (outer source EID, outer destination EID) identifies one
+<p id="section-2-2">Under the ipn scheme, the proposed well-known TUBE destination service
+number is TBD1.<a href="#section-2-2" class="pilcrow">¶</a></p>
+<p id="section-2-3">An example of a configured TUBE egress EID is
+<code>dtn://egress.example/.well-known/tube</code>. The demux string
+".well-known/tube" is illustrative and follows the spelling used
+by <span>[<a href="#RFC8615" class="cite xref">RFC8615</a>]</span>. The proposed well-known dtn demux is TBD2.<a href="#section-2-3" class="pilcrow">¶</a></p>
+<p id="section-2-4">Both identifiers apply only to the outer destination EID. A deployment
+can configure a different ipn service number or dtn demux for that
+destination. Neither identifier constrains the choice of source EID.<a href="#section-2-4" class="pilcrow">¶</a></p>
+<p id="section-2-5">The ordered pair (outer source EID, outer destination EID) identifies one
 unidirectional BTPU logical channel. Compare the complete EIDs according
 to their scheme's equality rules. Each pair has its own BTPU instance,
 current session, and transfer window. A Session ID has meaning within this
 channel. The egress <span class="bcp14">MUST</span> select the channel before applying any BTPU
-session or transfer state transition.<a href="#section-2-2" class="pilcrow">¶</a></p>
-<p id="section-2-3">An ingress <span class="bcp14">MAY</span> use an ephemeral source EID for one segmented transfer.
+session or transfer state transition.<a href="#section-2-5" class="pilcrow">¶</a></p>
+<p id="section-2-6">An ingress <span class="bcp14">MAY</span> use an ephemeral source EID for one segmented transfer.
 All carriers of that transfer <span class="bcp14">MUST</span> use the same source and destination
 EIDs. For the ipn scheme, an ingress can select a service number from
 a pool assigned to this purpose on its own fully qualified node number
@@ -1324,7 +1331,7 @@ a pool assigned to this purpose on its own fully qualified node number
 by node number and service-number range. It <span class="bcp14">MUST</span> retain the service number
 when identifying the channel. The service number in the destination EID
 can remain fixed. The availability and selection of source EIDs under
-other schemes depend on the scheme and the deployment.<a href="#section-2-3" class="pilcrow">¶</a></p>
+other schemes depend on the scheme and the deployment.<a href="#section-2-6" class="pilcrow">¶</a></p>
 </section>
 </div>
 <div id="encapsulation">
@@ -1340,12 +1347,11 @@ other schemes depend on the scheme and the deployment.<a href="#section-2-3" cla
 <p id="section-3.1-1">The ingress takes the serialized inner bundle after its BPA has performed
 normal forwarding-time processing under Section 5.4 of <span>[<a href="#RFC9171" class="cite xref">RFC9171</a>]</span>. It
 <span class="bcp14">MUST</span> use one serialization for all segments and repetitions of a given
-transfer. The tunnel treats these octets as opaque. In particular, an
-ingress presented with a BPv7 fragment can immediately encapsulate that
-fragment. Its sibling fragments are unnecessary. A protected inner
-bundle receives the same treatment.<a href="#section-3.1-1" class="pilcrow">¶</a></p>
-<p id="section-3.1-2">The ADU of each carrier <span class="bcp14">MUST</span> consist of exactly one nonempty PDU. The PDU
-contains one or more complete BTPU messages. The outer ADU boundary
+transfer. The tunnel treats the serialized inner bundle as opaque, even
+when it is protected. The ingress can encapsulate a BPv7 fragment without
+waiting for any other fragment of the same bundle.<a href="#section-3.1-1" class="pilcrow">¶</a></p>
+<p id="section-3.1-2">The ADU of each carrier <span class="bcp14">MUST</span> consist of exactly one nonempty BTPU
+Link-layer PDU, as defined in <span>[<a href="#I-D.ietf-dtn-btpu" class="cite xref">I-D.ietf-dtn-btpu</a>]</span>. The outer ADU boundary
 delimits the PDU. There is no additional envelope, length prefix, or
 administrative record header. The ingress <span class="bcp14">MUST</span> clear the administrative
 record flag and set the "Bundle must not be fragmented" flag on each
@@ -1651,9 +1657,25 @@ limit the effects of such replays.<a href="#section-7.3-1" class="pilcrow">¶</a
       <h2 id="name-iana-considerations">
 <a href="#section-8" class="section-number selfRef">8. </a><a href="#name-iana-considerations" class="section-name selfRef">IANA considerations</a>
       </h2>
-<p id="section-8-1">This document requests no IANA actions. The tunnel endpoints are
-configured. This binding requires no new BP block type, administrative
-record type, BTPU message type, or well-known ipn service number.<a href="#section-8-1" class="pilcrow">¶</a></p>
+<p id="section-8-1">IANA is requested to assign TBD1 from the Specification Required range
+(0x8000 through 0xFFFF) of the "'ipn' Scheme URI Well-Known Service
+Numbers for BPv7" registry (Section 9.3 of <span>[<a href="#RFC9758" class="cite xref">RFC9758</a>]</span>):<a href="#section-8-1" class="pilcrow">¶</a></p>
+<ul class="normal">
+<li class="normal" id="section-8-2.1">
+          <p id="section-8-2.1.1">Value: TBD1<a href="#section-8-2.1.1" class="pilcrow">¶</a></p>
+</li>
+        <li class="normal" id="section-8-2.2">
+          <p id="section-8-2.2.1">Description: Tunnel Using BTPU Encapsulation (TUBE) destination service<a href="#section-8-2.2.1" class="pilcrow">¶</a></p>
+</li>
+        <li class="normal" id="section-8-2.3">
+          <p id="section-8-2.3.1">Reference: This document<a href="#section-8-2.3.1" class="pilcrow">¶</a></p>
+</li>
+      </ul>
+<p id="section-8-3">Editor's note: TBD2 denotes the proposed TUBE demux for the outer dtn
+destination EID. The registration mechanism for well-known dtn demux
+strings remains open. No registration under <span>[<a href="#RFC8615" class="cite xref">RFC8615</a>]</span> is requested.<a href="#section-8-3" class="pilcrow">¶</a></p>
+<p id="section-8-4">This binding requires no new BP block type, administrative record type,
+or BTPU message type.<a href="#section-8-4" class="pilcrow">¶</a></p>
 </section>
 </div>
 <div id="sec-combined-references">
@@ -1713,8 +1735,12 @@ record type, BTPU message type, or well-known ipn service number.<a href="#secti
 <span class="refAuthor">Sipos, B.</span>, <span class="refTitle">"Bundle Protocol Security (BPSec) COSE Context"</span>, <span class="refContent">Work in Progress</span>, <span class="seriesInfo">Internet-Draft, draft-ietf-dtn-bpsec-cose-19</span>, <time datetime="2026-11-19" class="refDate">19 November 2026</time>, <span>&lt;<a href="https://datatracker.ietf.org/doc/html/draft-ietf-dtn-bpsec-cose-19">https://datatracker.ietf.org/doc/html/draft-ietf-dtn-bpsec-cose-19</a>&gt;</span>. </dd>
 <dd class="break"></dd>
 <dt id="I-D.taylor-dtn-btpx">[I-D.taylor-dtn-btpx]</dt>
-      <dd>
+        <dd>
 <span class="refAuthor">Taylor, R.</span>, <span class="refTitle">"Bundle Transfer Protocol - Cross-Link"</span>, <span class="refContent">Work in Progress</span>, <span class="seriesInfo">Internet-Draft, draft-taylor-dtn-btpx-00</span>, <time datetime="2026-10-15" class="refDate">15 October 2026</time>, <span>&lt;<a href="https://datatracker.ietf.org/doc/html/draft-taylor-dtn-btpx-00">https://datatracker.ietf.org/doc/html/draft-taylor-dtn-btpx-00</a>&gt;</span>. </dd>
+<dd class="break"></dd>
+<dt id="RFC8615">[RFC8615]</dt>
+      <dd>
+<span class="refAuthor">Nottingham, M.</span>, <span class="refTitle">"Well-Known Uniform Resource Identifiers (URIs)"</span>, <span class="seriesInfo">RFC 8615</span>, <span class="seriesInfo">DOI 10.17487/RFC8615</span>, <time datetime="2019-05" class="refDate">May 2019</time>, <span>&lt;<a href="https://www.rfc-editor.org/rfc/rfc8615">https://www.rfc-editor.org/rfc/rfc8615</a>&gt;</span>. </dd>
 <dd class="break"></dd>
 </dl>
 </section>
@@ -1753,10 +1779,10 @@ segments 0, 1, and 2 and hands the inner bundle to its BPA. A later
 duplicate of segment 2 produces no second handoff.<a href="#appendix-A-2.4.1" class="pilcrow">¶</a></p>
 </li>
       </ol>
-<p id="appendix-A-3">If the inner bundle in transfer 100 was already a BPv7 fragment, the
-object handed to the BPA is that fragment, including its original
-fragment offset. Reassembly of the original BP ADU takes place under
-the usual BPv7 rules.<a href="#appendix-A-3" class="pilcrow">¶</a></p>
+<p id="appendix-A-3">If transfer 100 carries a BPv7 fragment, the egress reconstructs that
+fragment from BTPU segments 0 through 2. It passes the fragment to its
+BPA with the fragment offset unchanged. Reassembly of the original ADU
+is a separate BPv7 operation.<a href="#appendix-A-3" class="pilcrow">¶</a></p>
 </section>
 </div>
 <div id="experiment">
