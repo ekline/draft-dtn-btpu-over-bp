@@ -33,8 +33,7 @@ This document specifies how to carry the Bundle Transfer Protocol -
 Unidirectional (BTPU) over Bundle Protocol Version 7 (BPv7). In a Tunnel
 Using BTPU Encapsulation (TUBE), each outer bundle carries one BTPU
 link-layer protocol data unit in its application data unit. BTPU can carry several whole bundles in one outer bundle or
-divide a serialized bundle among several outer bundles. The same procedures
-apply when the serialized bundle is itself a BPv7 fragment.
+divide a serialized bundle among several outer bundles. The tunnel can carry an existing BPv7 fragment without waiting for the other fragments.
 
 Outer bundles can take different routes and arrive in any order during
 their lifetimes. This document defines how tunnel endpoints identify BTPU
@@ -93,6 +92,18 @@ The singleton destination ensures that carriers taking different paths
 reach the same reassembly function. A receiver implemented by several
 processes MUST provide consistent channel state across those processes.
 
+Under the ipn scheme, the proposed well-known TUBE destination service
+number is TBD1.
+
+An example of a configured TUBE egress EID is
+`dtn://egress.example/.well-known/tube`. The demux string
+".well-known/tube" is illustrative and follows the spelling used
+by {{?RFC8615}}. The proposed well-known dtn demux is TBD2.
+
+Both identifiers apply only to the outer destination EID. A deployment
+can configure a different ipn service number or dtn demux for that
+destination. Neither identifier constrains the choice of source EID.
+
 The ordered pair (outer source EID, outer destination EID) identifies one
 unidirectional BTPU logical channel. Compare the complete EIDs according
 to their scheme's equality rules. Each pair has its own BTPU instance,
@@ -117,13 +128,12 @@ other schemes depend on the scheme and the deployment.
 The ingress takes the serialized inner bundle after its BPA has performed
 normal forwarding-time processing under Section 5.4 of {{RFC9171}}. It
 MUST use one serialization for all segments and repetitions of a given
-transfer. The tunnel treats these octets as opaque. In particular, an
-ingress presented with a BPv7 fragment can immediately encapsulate that
-fragment. Its sibling fragments are unnecessary. A protected inner
-bundle receives the same treatment.
+transfer. The tunnel treats the serialized inner bundle as opaque, even
+when it is protected. The ingress can encapsulate a BPv7 fragment without
+waiting for any other fragment of the same bundle.
 
-The ADU of each carrier MUST consist of exactly one nonempty PDU. The PDU
-contains one or more complete BTPU messages. The outer ADU boundary
+The ADU of each carrier MUST consist of exactly one nonempty BTPU
+Link-layer PDU, as defined in {{I-D.ietf-dtn-btpu}}. The outer ADU boundary
 delimits the PDU. There is no additional envelope, length prefix, or
 administrative record header. The ingress MUST clear the administrative
 record flag and set the "Bundle must not be fragmented" flag on each
@@ -391,9 +401,20 @@ limit the effects of such replays.
 
 # IANA considerations
 
-This document requests no IANA actions. The tunnel endpoints are
-configured. This binding requires no new BP block type, administrative
-record type, BTPU message type, or well-known ipn service number.
+IANA is requested to assign TBD1 from the Specification Required range
+(0x8000 through 0xFFFF) of the "'ipn' Scheme URI Well-Known Service
+Numbers for BPv7" registry (Section 9.3 of {{RFC9758}}):
+
+* Value: TBD1
+* Description: Tunnel Using BTPU Encapsulation (TUBE) destination service
+* Reference: This document
+
+Editor's note: TBD2 denotes the proposed TUBE demux for the outer dtn
+destination EID. The registration mechanism for well-known dtn demux
+strings remains open. No registration under {{RFC8615}} is requested.
+
+This binding requires no new BP block type, administrative record type,
+or BTPU message type.
 
 --- back
 
@@ -418,10 +439,10 @@ containing Transfer messages.
    segments 0, 1, and 2 and hands the inner bundle to its BPA. A later
    duplicate of segment 2 produces no second handoff.
 
-If the inner bundle in transfer 100 was already a BPv7 fragment, the
-object handed to the BPA is that fragment, including its original
-fragment offset. Reassembly of the original BP ADU takes place under
-the usual BPv7 rules.
+If transfer 100 carries a BPv7 fragment, the egress reconstructs that
+fragment from BTPU segments 0 through 2. It passes the fragment to its
+BPA with the fragment offset unchanged. Reassembly of the original ADU
+is a separate BPv7 operation.
 
 # Experiment
 
